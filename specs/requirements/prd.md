@@ -22,8 +22,8 @@ SSO and requests the greeting from the API.
 ## User Stories
 
 1. As a Caller, I want to call the hello-world endpoint, so that I receive a
- greeting message confirming the service is reachable and I am
- authenticated.
+greeting message confirming the service is reachable and I am
+authenticated.
 
 ## Product Decisions
 
