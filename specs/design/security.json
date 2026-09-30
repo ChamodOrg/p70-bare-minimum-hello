@@ -1,0 +1,28 @@
+{
+  "version": 3,
+  "permissions": [
+    {
+      "resource": "greeting",
+      "component": "hello-api",
+      "description": "The hello-world greeting",
+      "actions": [
+        { "handle": "read", "description": "Read the fixed greeting" }
+      ]
+    }
+  ],
+  "groups": [
+    { "name": "Callers", "description": "Everyone allowed to call the hello-world API" }
+  ],
+  "roles": [
+    {
+      "name": "Caller",
+      "description": "Signed-in caller who requests the hello-world greeting.",
+      "stories": [1],
+      "grants": ["greeting:read"],
+      "assignTo": ["Callers"]
+    }
+  ],
+  "testUsers": [
+    { "username": "test-caller", "roles": ["Caller"] }
+  ]
+}

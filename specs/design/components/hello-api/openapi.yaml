@@ -13,7 +13,8 @@ components:
         authorizationCode:
           authorizationUrl: /oauth2/authorize
           tokenUrl: /oauth2/token
-          scopes: {}
+          scopes:
+            greeting:read: Read the fixed greeting
   schemas:
     Greeting:
       type: object
@@ -45,6 +46,8 @@ paths:
     get:
       operationId: getGreeting
       summary: The fixed hello-world greeting, for any signed-in caller
+      security:
+        - oauth2: [greeting:read]
       responses:
         '200':
           description: the greeting
