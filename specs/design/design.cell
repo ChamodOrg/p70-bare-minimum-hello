@@ -1,0 +1,9 @@
+title p70-bare-minimum-hello
+
+component hello-api as "Hello API" service
+
+east user-auth as "Thunder Auth" identity-server
+
+north -> hello-api
+
+hello-api -> user-auth

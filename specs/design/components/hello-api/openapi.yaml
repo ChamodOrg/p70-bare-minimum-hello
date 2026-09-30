@@ -1,0 +1,60 @@
+openapi: 3.0.3
+info:
+  title: Hello API
+  version: 0.1.0
+  description: A single authenticated endpoint returning a fixed hello-world greeting.
+servers:
+  - url: /
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: /oauth2/authorize
+          tokenUrl: /oauth2/token
+          scopes: {}
+  schemas:
+    Greeting:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: the fixed hello-world greeting
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+          description: HTTP or application error code
+        message:
+          type: string
+          description: short human-readable label
+        description:
+          type: string
+          description: detailed explanation
+        moreInfo:
+          type: string
+          description: URI to documentation
+security:
+  - oauth2: []
+paths:
+  /greeting:
+    get:
+      operationId: getGreeting
+      summary: The fixed hello-world greeting, for any signed-in caller
+      responses:
+        '200':
+          description: the greeting
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Greeting'
+        '401':
+          description: no valid signed-in token was presented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

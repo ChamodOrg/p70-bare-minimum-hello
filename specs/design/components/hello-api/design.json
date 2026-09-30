@@ -1,0 +1,16 @@
+{
+  "name": "hello-api",
+  "type": "service",
+  "version": "0.1.0",
+  "language": "Ballerina",
+  "buildpack": "docker",
+  "appPath": "hello-api",
+  "entrypoint": "deployment/service",
+  "exposure": "internet",
+  "dependencies": [
+    { "kind": "platform-resource", "name": "user-auth", "resourceType": "thunder-app" }
+  ],
+  "description": "The bare-minimum hello-world API: a single authenticated endpoint that returns a fixed greeting to confirm the service is reachable and the caller is signed in. Holds no data, exposes no other endpoint, and does not personalize or configure the greeting.",
+  "stories": [1],
+  "skillsPinned": ["openapi-conventions", "ballerina", "thunder-authentication", "api-management"]
+}
