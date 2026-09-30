@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-30T11:08:25Z",
+  "commit": "4d08507feda29b4fc889b2f79334ae61bf19b0bb",
+  "baseUrl": "http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http",
+  "isolation": "hello-api exposes a single stateless GET /greeting endpoint with no per-caller data, so isolation is by identity: each scenario acquires its own fresh OAuth2 authorization-code+PKCE token via Thunder SSO (the test-caller account) and asserts only on the response to its own request. Only one test account (test-caller) was provisioned on the roles gate ticket, so the 'Jordan' caller in the fixed-message rule is represented by a second, independently-acquired token for the same account rather than a distinct identity — noted as a limitation, not a defect.",
+  "scenarios": [
+    {
+      "feature": "Hello-world greeting",
+      "featureFile": "specs/validation/acceptance/hello-greeting.feature",
+      "line": 6,
+      "rule": "Only a signed-in caller may request the greeting",
+      "scenario": "A signed-in caller receives the greeting",
+      "tags": ["@story-1"],
+      "outcome": "passed",
+      "steps": [
+        { "text": "Sam has signed in via Thunder SSO", "keyword": "Given",
+          "command": "browser: authorization_code+PKCE flow at http://development-idp.openchoreo.localhost:8080/oauth2/authorize (client_id from the roles-gate ticket, scope=greeting:read) signed in as test-caller/**** via the IdP sign-in form, then POST /oauth2/token exchanged the code for an access token",
+          "exit": 0, "observed": "token endpoint returned 200 with an access_token scoped 'greeting:read'" },
+        { "text": "Sam requests the hello-world greeting", "keyword": "When",
+          "command": "curl -i -H \"Authorization: Bearer $SAM_TOKEN\" $BASE/greeting",
+          "exit": 0, "observed": "HTTP/1.1 200 OK" },
+        { "text": "Sam receives a greeting message", "keyword": "Then",
+          "command": "curl -s -H \"Authorization: Bearer $SAM_TOKEN\" $BASE/greeting | jq '.message'",
+          "exit": 0, "observed": "\"Hello, world!\"" }
+      ],
+      "evidence": {
+        "network": [{ "method": "GET", "url": "/greeting", "status": 200 }],
+        "console": []
+      }
+    },
+    {
+      "feature": "Hello-world greeting",
+      "featureFile": "specs/validation/acceptance/hello-greeting.feature",
+      "line": 12,
+      "rule": "Only a signed-in caller may request the greeting",
+      "scenario": "An unauthenticated request is refused",
+      "tags": ["@story-1", "@negative"],
+      "outcome": "passed",
+      "steps": [
+        { "text": "Sam has not signed in", "keyword": "Given",
+          "command": "no token was acquired or attached to the request",
+          "exit": 0, "observed": "no Authorization header sent" },
+        { "text": "Sam requests the hello-world greeting", "keyword": "When",
+          "command": "curl -i $BASE/greeting",
+          "exit": 0, "observed": "HTTP/1.1 401 Unauthorized" },
+        { "text": "the request is refused", "keyword": "Then",
+          "command": "curl -s -o /dev/null -w '%{http_code}' $BASE/greeting",
+          "exit": 0, "observed": "401 — body {\"error\":\"Unauthorized\",\"message\":\"Authentication failed\"}" }
+      ],
+      "evidence": {
+        "network": [{ "method": "GET", "url": "/greeting", "status": 401 }],
+        "console": []
+      }
+    },
+    {
+      "feature": "Hello-world greeting",
+      "featureFile": "specs/validation/acceptance/hello-greeting.feature",
+      "line": 20,
+      "rule": "The greeting message is fixed",
+      "scenario": "The greeting does not vary between callers",
+      "tags": ["@story-1"],
+      "outcome": "passed",
+      "steps": [
+        { "text": "Sam and Jordan have both signed in via Thunder SSO", "keyword": "Given",
+          "command": "two independent authorization_code+PKCE flows against http://development-idp.openchoreo.localhost:8080/oauth2/authorize, each signed in via the IdP form (test-caller/****) with its own PKCE verifier/challenge and state, each exchanged at POST /oauth2/token",
+          "exit": 0, "observed": "two distinct access tokens issued (distinct jti claims)" },
+        { "text": "Sam requests the hello-world greeting and Jordan requests the hello-world greeting", "keyword": "When",
+          "command": "curl -i -H \"Authorization: Bearer $SAM_TOKEN\" $BASE/greeting; curl -i -H \"Authorization: Bearer $JORDAN_TOKEN\" $BASE/greeting",
+          "exit": 0, "observed": "both returned HTTP/1.1 200 OK" },
+        { "text": "they receive the same greeting message", "keyword": "Then",
+          "command": "diff <(curl -s -H \"Authorization: Bearer $SAM_TOKEN\" $BASE/greeting) <(curl -s -H \"Authorization: Bearer $JORDAN_TOKEN\" $BASE/greeting)",
+          "exit": 0, "observed": "both responses were exactly {\"message\":\"Hello, world!\"} — no diff" }
+      ],
+      "evidence": {
+        "network": [
+          { "method": "GET", "url": "/greeting", "status": 200 },
+          { "method": "GET", "url": "/greeting", "status": 200 }
+        ],
+        "console": []
+      }
+    }
+  ]
+}
