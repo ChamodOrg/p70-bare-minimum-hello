@@ -1,9 +1,9 @@
 {
   "schemaVersion": 3,
-  "generatedAt": "2026-10-01T13:14:50.531Z",
-  "commit": "f8e53641caba4c7dd2397631d0df202561a35722",
+  "generatedAt": "2026-10-01T13:44:19.282Z",
+  "commit": "ee23309a35e5e06ee2f0ce23cee41504c6e2c661",
   "baseUrl": "http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http",
-  "isolation": "No shared mutable state exists to isolate: the greeting endpoint is stateless and pure (fixed message, no per-caller or per-request data). Each scenario independently acquired its own OAuth token via a fresh Thunder SSO sign-in (separate PKCE parameters and, for the two-caller scenario, separate browser sessions), so no scenario's credentials or assertions depend on another's.",
+  "isolation": "Each scenario acquired its own fresh OAuth2 authorization_code+PKCE token via a sign-in through Thunder SSO's hosted login UI (driven with agent-browser) as the project's single provisioned test account, test-caller. The one UI-bearing step is that sign-in; the hello-api itself has no UI, so the When/Then of every scenario was driven directly against the deployed API with curl, each call read independently rather than depending on prior app state. The negative scenario simply omitted the Authorization header. The fixed-greeting scenario modeled Sam and Jordan as two independent sign-in sessions on the same test account (only one is provisioned), and compared the two responses directly rather than against a stored total, so the assertion holds regardless of any other traffic hitting the deployed app concurrently.",
   "scenarios": [
     {
       "feature": "Hello-world greeting",
@@ -11,29 +11,27 @@
       "line": 6,
       "rule": "Only a signed-in caller may request the greeting",
       "scenario": "A signed-in caller receives the greeting",
-      "tags": [
-        "@story-1"
-      ],
+      "tags": [],
       "outcome": "passed",
       "steps": [
         {
           "text": "Sam has signed in via Thunder SSO",
           "keyword": "Given",
-          "command": "PKCE authorization_code flow against http://development-idp.openchoreo.localhost:8080/oauth2/authorize with client_id aep-dp-default-p70-bare-mini-development-09072194-r-p70-bare-minimum-1c67d036-development-553a1218, signed in as test-caller via agent-browser, then POST /oauth2/token exchanged the code",
+          "command": "agent-browser open <authorize URL with PKCE>; fill username/password for test-caller; click Sign In; exchange code at /oauth2/token",
           "exit": 0,
-          "observed": "token endpoint returned 200 with an access_token scoped \"openid greeting:read\""
+          "observed": "token endpoint returned 200 with an access_token scoped greeting:read"
         },
         {
           "text": "Sam requests the hello-world greeting",
           "keyword": "When",
-          "command": "curl -sS -i -H \"Authorization: Bearer <sam_token>\" http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http/greeting"
+          "command": "curl -s -H \"Authorization: Bearer $TOKEN_SAM\" http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http/greeting"
         },
         {
           "text": "Sam receives a greeting message",
           "keyword": "Then",
-          "command": "curl -sS -i -H \"Authorization: Bearer <sam_token>\" .../greeting",
+          "command": "curl -s -o /dev/null -w '%{http_code}' -H \"Authorization: Bearer $TOKEN_SAM\" http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http/greeting",
           "exit": 0,
-          "observed": "HTTP/1.1 200 OK, body {\"message\":\"Hello, world!\"}"
+          "observed": "200, body {\"message\":\"Hello, world! (#13)\"}"
         }
       ]
     },
@@ -44,7 +42,6 @@
       "rule": "Only a signed-in caller may request the greeting",
       "scenario": "An unauthenticated request is refused",
       "tags": [
-        "@story-1",
         "@negative"
       ],
       "outcome": "passed",
@@ -52,19 +49,17 @@
         {
           "text": "Sam has not signed in",
           "keyword": "Given",
-          "command": "no Authorization header sent",
-          "exit": 0,
-          "observed": "no token obtained or presented"
+          "observed": "no Authorization header sent"
         },
         {
           "text": "Sam requests the hello-world greeting",
           "keyword": "When",
-          "command": "curl -sS -i http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http/greeting"
+          "command": "curl -s -o /dev/null -w '%{http_code}' http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http/greeting"
         },
         {
           "text": "the request is refused",
           "keyword": "Then",
-          "command": "curl -sS -i http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http/greeting",
+          "command": "curl -sv http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http/greeting",
           "exit": 0,
           "observed": "HTTP/1.1 401 Unauthorized, body {\"error\":\"Unauthorized\",\"message\":\"Authentication failed\"}"
         }
@@ -76,31 +71,47 @@
       "line": 20,
       "rule": "The greeting message is fixed",
       "scenario": "The greeting does not vary between callers",
-      "tags": [
-        "@story-1"
-      ],
-      "outcome": "passed",
+      "tags": [],
+      "outcome": "failed",
+      "reproduced": "yes",
+      "note": "the message embeds an incrementing per-request counter, e.g. (#15) then (#16), then (#17) then (#18) on a second pass — any two calls necessarily differ regardless of which caller makes them",
       "steps": [
         {
           "text": "Sam and Jordan have both signed in via Thunder SSO",
           "keyword": "Given",
-          "command": "two independent PKCE authorization_code flows (separate agent-browser sessions, separate code_verifier/state) against the Thunder SSO authorize/token endpoints, both as the published test-caller login",
+          "command": "two independent OAuth2 authorization_code+PKCE sign-ins via Thunder SSO as test-caller (only one test account is provisioned on this project's roles gate; each sign-in is a fresh authorize+login+token exchange, modeling Sam and Jordan as two separate caller sessions)",
           "exit": 0,
-          "observed": "two distinct access_token values issued, one per sign-in session"
+          "observed": "two distinct access_token values issued, both scope greeting:read"
         },
         {
           "text": "Sam requests the hello-world greeting and Jordan requests the hello-world greeting",
           "keyword": "When",
-          "command": "curl -sS -H \"Authorization: Bearer <sam_token>\" .../greeting ; curl -sS -H \"Authorization: Bearer <jordan_token>\" .../greeting"
+          "command": "curl -s -H \"Authorization: Bearer $TOKEN_SAM\" .../greeting; curl -s -H \"Authorization: Bearer $TOKEN_JORDAN\" .../greeting"
         },
         {
           "text": "they receive the same greeting message",
           "keyword": "Then",
-          "command": "diff <(echo \"$SAM_RESP\") <(echo \"$JORDAN_RESP\")",
-          "exit": 0,
-          "observed": "both responses: {\"message\":\"Hello, world!\"} — identical, also repeated across 5 consecutive calls with no variation"
+          "command": "diff <(curl -s -H \"Authorization: Bearer $TOKEN_SAM\" .../greeting) <(curl -s -H \"Authorization: Bearer $TOKEN_JORDAN\" .../greeting)",
+          "exit": 1,
+          "observed": "Sam received {\"message\":\"Hello, world! (#15)\"}, Jordan received {\"message\":\"Hello, world! (#16)\"} — different messages"
         }
-      ]
+      ],
+      "evidence": {
+        "network": [
+          {
+            "method": "GET",
+            "url": "http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http/greeting",
+            "status": 200
+          },
+          {
+            "method": "GET",
+            "url": "http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http/greeting",
+            "status": 200
+          }
+        ],
+        "console": [],
+        "notCaptured": "this app has no UI (a pure API, see specs/design/design.cell) and the When/Then here were driven directly against the API with curl, not through agent-browser, so there is no page tree to snapshot"
+      }
     }
   ]
 }
