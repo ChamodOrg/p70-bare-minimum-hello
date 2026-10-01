@@ -1,9 +1,9 @@
 {
   "schemaVersion": 3,
-  "generatedAt": "2026-10-01T09:07:50.265Z",
-  "commit": "a51656e18d0dcca6c3d46469014f93735b862a6e",
+  "generatedAt": "2026-10-01T13:14:50.531Z",
+  "commit": "f8e53641caba4c7dd2397631d0df202561a35722",
   "baseUrl": "http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http",
-  "isolation": "No shared mutable state exists to isolate: the hello-api has a single stateless GET /greeting endpoint with no per-caller data. Each scenario is independent because it only asserts on the HTTP response to its own request(s), driven below the UI via curl with a freshly-acquired OAuth access token (the component has no web UI). The two-caller scenario used two separately-obtained tokens from two independent authorization_code+PKCE sign-ins so the two requests were genuinely distinct calls, not a single token reused.",
+  "isolation": "No shared mutable state exists to isolate: the greeting endpoint is stateless and pure (fixed message, no per-caller or per-request data). Each scenario independently acquired its own OAuth token via a fresh Thunder SSO sign-in (separate PKCE parameters and, for the two-caller scenario, separate browser sessions), so no scenario's credentials or assertions depend on another's.",
   "scenarios": [
     {
       "feature": "Hello-world greeting",
@@ -11,26 +11,29 @@
       "line": 6,
       "rule": "Only a signed-in caller may request the greeting",
       "scenario": "A signed-in caller receives the greeting",
+      "tags": [
+        "@story-1"
+      ],
       "outcome": "passed",
       "steps": [
         {
           "text": "Sam has signed in via Thunder SSO",
           "keyword": "Given",
-          "command": "authorization_code+PKCE sign-in as test-caller via Thunder IdP (agent-browser: fill username/password, submit) then POST /oauth2/token to exchange the code",
-          "exit": 0
+          "command": "PKCE authorization_code flow against http://development-idp.openchoreo.localhost:8080/oauth2/authorize with client_id aep-dp-default-p70-bare-mini-development-09072194-r-p70-bare-minimum-1c67d036-development-553a1218, signed in as test-caller via agent-browser, then POST /oauth2/token exchanged the code",
+          "exit": 0,
+          "observed": "token endpoint returned 200 with an access_token scoped \"openid greeting:read\""
         },
         {
           "text": "Sam requests the hello-world greeting",
           "keyword": "When",
-          "command": "curl -s -o /tmp/s1_resp.json -w '%{http_code}' -H \"Authorization: Bearer $TOKEN_SAM\" $EP/greeting",
-          "exit": 0,
-          "observed": "200 {\"message\":\"Hello, world!\"}"
+          "command": "curl -sS -i -H \"Authorization: Bearer <sam_token>\" http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http/greeting"
         },
         {
           "text": "Sam receives a greeting message",
           "keyword": "Then",
-          "command": "node -e 'const r=require(\"/tmp/s1_resp.json\"); process.exit(typeof r.message === \"string\" && r.message.length > 0 ? 0 : 1)'",
-          "exit": 0
+          "command": "curl -sS -i -H \"Authorization: Bearer <sam_token>\" .../greeting",
+          "exit": 0,
+          "observed": "HTTP/1.1 200 OK, body {\"message\":\"Hello, world!\"}"
         }
       ]
     },
@@ -41,6 +44,7 @@
       "rule": "Only a signed-in caller may request the greeting",
       "scenario": "An unauthenticated request is refused",
       "tags": [
+        "@story-1",
         "@negative"
       ],
       "outcome": "passed",
@@ -48,21 +52,21 @@
         {
           "text": "Sam has not signed in",
           "keyword": "Given",
-          "command": "no token acquired; no Authorization header sent",
-          "exit": 0
+          "command": "no Authorization header sent",
+          "exit": 0,
+          "observed": "no token obtained or presented"
         },
         {
           "text": "Sam requests the hello-world greeting",
           "keyword": "When",
-          "command": "curl -s -o /tmp/s2_resp.json -w '%{http_code}' $EP/greeting",
-          "exit": 0,
-          "observed": "401 {\"error\":\"Unauthorized\",\"message\":\"Authentication failed\"}"
+          "command": "curl -sS -i http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http/greeting"
         },
         {
           "text": "the request is refused",
           "keyword": "Then",
-          "command": "test \"$STATUS2\" = \"401\"",
-          "exit": 0
+          "command": "curl -sS -i http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http/greeting",
+          "exit": 0,
+          "observed": "HTTP/1.1 401 Unauthorized, body {\"error\":\"Unauthorized\",\"message\":\"Authentication failed\"}"
         }
       ]
     },
@@ -72,27 +76,29 @@
       "line": 20,
       "rule": "The greeting message is fixed",
       "scenario": "The greeting does not vary between callers",
+      "tags": [
+        "@story-1"
+      ],
       "outcome": "passed",
-      "note": "Only one test identity (test-caller) was provisioned on this milestone's roles gate ticket, so Sam and Jordan are represented by two independently-obtained access tokens (separate authorization_code+PKCE sign-ins, separate authorization codes and tokens) rather than two distinct human identities.",
       "steps": [
         {
           "text": "Sam and Jordan have both signed in via Thunder SSO",
           "keyword": "Given",
-          "command": "two independent authorization_code+PKCE sign-ins as test-caller via Thunder IdP, each exchanged for its own access token",
-          "exit": 0
+          "command": "two independent PKCE authorization_code flows (separate agent-browser sessions, separate code_verifier/state) against the Thunder SSO authorize/token endpoints, both as the published test-caller login",
+          "exit": 0,
+          "observed": "two distinct access_token values issued, one per sign-in session"
         },
         {
           "text": "Sam requests the hello-world greeting and Jordan requests the hello-world greeting",
           "keyword": "When",
-          "command": "curl -s -o /tmp/s3_sam.json -w '%{http_code}' -H \"Authorization: Bearer $TOKEN_SAM\" $EP/greeting ; curl -s -o /tmp/s3_jordan.json -w '%{http_code}' -H \"Authorization: Bearer $TOKEN_JORDAN\" $EP/greeting",
-          "exit": 0,
-          "observed": "sam_status=200 {\"message\":\"Hello, world!\"}; jordan_status=200 {\"message\":\"Hello, world!\"}"
+          "command": "curl -sS -H \"Authorization: Bearer <sam_token>\" .../greeting ; curl -sS -H \"Authorization: Bearer <jordan_token>\" .../greeting"
         },
         {
           "text": "they receive the same greeting message",
           "keyword": "Then",
-          "command": "node -e 'const a=require(\"/tmp/s3_sam.json\"), b=require(\"/tmp/s3_jordan.json\"); process.exit(JSON.stringify(a)===JSON.stringify(b) ? 0 : 1)'",
-          "exit": 0
+          "command": "diff <(echo \"$SAM_RESP\") <(echo \"$JORDAN_RESP\")",
+          "exit": 0,
+          "observed": "both responses: {\"message\":\"Hello, world!\"} — identical, also repeated across 5 consecutive calls with no variation"
         }
       ]
     }
