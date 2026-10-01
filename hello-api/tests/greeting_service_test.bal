@@ -72,7 +72,7 @@ function testGreetingIsIdenticalAcrossCallers() returns error? {
     string tokenForJordan = check mintAssertion(TEST_PRIVATE_KEY_FILE, "caller-jordan", "greeting:read");
     Greeting samResponse = check greetingClient->get("/greeting", {"x-jwt-assertion": tokenForSam});
     Greeting jordanResponse = check greetingClient->get("/greeting", {"x-jwt-assertion": tokenForJordan});
-    test:assertTrue(samResponse.message.startsWith("Hello, world!") && jordanResponse.message.startsWith("Hello, world!"));
+    test:assertEquals(samResponse.message, jordanResponse.message);
 }
 
 @test:Config {}

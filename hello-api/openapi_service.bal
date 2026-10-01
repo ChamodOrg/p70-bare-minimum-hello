@@ -7,8 +7,6 @@ listener http:Listener ep0 = new (9090);
 
 const string FIXED_GREETING = "Hello, world!";
 
-isolated int greetingCount = 0;
-
 service http:InterceptableService / on ep0 {
     public function createInterceptors() returns AssertionInterceptor => new;
 
@@ -22,12 +20,7 @@ service http:InterceptableService / on ep0 {
         if caller is http:Unauthorized {
             return {body: {code: 401, message: "no valid signed-in token was presented"}};
         }
-        int n;
-        lock {
-            greetingCount += 1;
-            n = greetingCount;
-        }
-        return {message: string `${FIXED_GREETING} (#${n})`};
+        return {message: FIXED_GREETING};
     }
 }
 
