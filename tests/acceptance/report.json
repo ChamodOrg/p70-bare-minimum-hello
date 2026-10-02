@@ -1,9 +1,9 @@
 {
   "schemaVersion": 3,
-  "generatedAt": "2026-10-01T14:04:22.944Z",
-  "commit": "4dcdf6e746b9383195983f952f6aadbbd93352f2",
+  "generatedAt": "2026-10-02T16:12:32.876Z",
+  "commit": "84d6c1e839d54caa8ac0c973ba4c93c6ac606b97",
   "baseUrl": "http://development-default.openchoreoapis.localhost:19080/p70-bare-minimum-hello-hello-api-http",
-  "isolation": "Each scenario drove its own independent OAuth2/PKCE sign-in against Thunder SSO (a fresh browser session per caller: one for Sam, a separate one for Jordan, both against the test-caller login published on the roles-gate ticket) and called the deployed GET /greeting endpoint directly. The endpoint is stateless and read-only (no container to own), so isolation came from using fresh, independent sign-ins per scenario rather than from a resettable resource; no shared state was mutated or depended upon between scenarios.",
+  "isolation": "Each scenario drove its own independent OAuth2/PKCE sign-in against Thunder SSO (separate browser sessions per caller: one for Sam, a separate one for Jordan, both against the test-caller login published on the roles-gate ticket) and called the deployed GET /greeting endpoint directly. The endpoint is stateless and read-only with no container to own, so isolation came from fresh independent sign-ins and tokens per scenario rather than from a resettable resource; no shared state was mutated or depended upon between scenarios.",
   "scenarios": [
     {
       "feature": "Hello-world greeting",
@@ -19,8 +19,9 @@
         {
           "text": "Sam has signed in via Thunder SSO",
           "keyword": "Given",
-          "command": "agent-browser: PKCE authorize against development-idp.openchoreo.localhost/oauth2/authorize, signed in as test-caller, then POST /oauth2/token to exchange the code",
-          "exit": 0
+          "command": "agent-browser PKCE authorize+login against development-idp.openchoreo.localhost/oauth2/authorize as test-caller, then POST /oauth2/token to exchange the code",
+          "exit": 0,
+          "observed": "HTTP/1.1 200 OK, access_token issued with scope 'openid greeting:read'"
         },
         {
           "text": "Sam requests the hello-world greeting",
@@ -32,7 +33,7 @@
         {
           "text": "Sam receives a greeting message",
           "keyword": "Then",
-          "command": "grep -q '^HTTP/1.1 200' headers_sam_authed.txt && python3 -c \"import json,sys; d=json.load(open('resp_sam_authed.json')); sys.exit(0 if d.get('message') else 1)\"",
+          "command": "grep -q '^HTTP/1.1 200' headers_sam_greeting.txt && python3 -c \"import json,sys; d=json.load(open('resp_sam_greeting.json')); sys.exit(0 if d.get('message') else 1)\"",
           "exit": 0
         }
       ]
@@ -52,7 +53,7 @@
         {
           "text": "Sam has not signed in",
           "keyword": "Given",
-          "command": "no token obtained — no sign-in performed",
+          "command": "no sign-in performed — no token obtained",
           "exit": 0
         },
         {
@@ -84,21 +85,23 @@
         {
           "text": "Sam and Jordan have both signed in via Thunder SSO",
           "keyword": "Given",
-          "command": "two independent agent-browser PKCE sign-ins (separate browser sessions acc-ccc2a84b1578 and acc-jordan-session) against test-caller, each exchanged for its own access token via POST /oauth2/token",
-          "exit": 0
+          "command": "two independent agent-browser PKCE sign-ins in separate sessions (acc-abdd7afecb14 for Sam, acc-jordan-1790957473 for Jordan) against test-caller, each exchanged for its own access token via POST /oauth2/token",
+          "exit": 0,
+          "observed": "both exchanges returned HTTP/1.1 200 OK with distinct access tokens"
         },
         {
           "text": "Sam requests the hello-world greeting and Jordan requests the hello-world greeting",
           "keyword": "When",
-          "command": "curl -s -D - .../greeting -H Authorization:Bearer <sam-token> ; curl -s -D - .../greeting -H Authorization:Bearer <jordan-token>",
+          "command": "curl -s -D - .../greeting -H \"Authorization: Bearer <sam-token>\" ; curl -s -D - .../greeting -H \"Authorization: Bearer <jordan-token>\"",
           "exit": 0,
           "observed": "both HTTP/1.1 200 OK, bodies {\"message\":\"Hello, world!\"} and {\"message\":\"Hello, world!\"}"
         },
         {
           "text": "they receive the same greeting message",
           "keyword": "Then",
-          "command": "python3 -c \"import json,sys; a=json.load(open('resp_sam_authed.json')); b=json.load(open('resp_jordan_authed.json')); sys.exit(0 if a.get('message') and a.get('message')==b.get('message') else 1)\"",
-          "exit": 0
+          "command": "python3 -c \"import json,sys; a=json.load(open('resp_sam_greeting.json')); b=json.load(open('resp_jordan_greeting.json')); sys.exit(0 if a.get('message') and a.get('message')==b.get('message') else 1)\"",
+          "exit": 0,
+          "observed": "sam.message == jordan.message == 'Hello, world!'"
         }
       ]
     }
